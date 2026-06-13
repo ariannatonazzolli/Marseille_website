@@ -50,41 +50,45 @@ MANUAL_CORRECTIONS = {
     "4 rue Rodolphe Pollack, Marseille":    "4 rue Pollack, Marseille",
 }
 
+ALL_ARRONDISSEMENTS = [
+    "1er", "2e", "3e", "4e", "5e", "6e", "7e", "8e",
+    "9e", "10e", "11e", "12e", "13e", "14e", "15e", "16e",
+]
+
+
 class Command(BaseCommand):
     help = "Scrapes addresses from Marseille website and geocodes them"
 
-    def scrape_addresses(self, arrondissement="1er"):
-        url = "https://www.marseille.fr/logement-urbanisme/amelioration-de-lhabitat/arretes-de-peril"
-        headers = {"User-Agent": "Mozilla/5.0"}
-        response = requests.get(url, headers=headers)
-        soup = BeautifulSoup(response.text, "html.parser")
-
+    def scrape_addresses(self, arrondissement, soup):
         addresses = []
 
-        # Trova tutti i <dl class="ckeditor-accordion">
         for dl in soup.find_all("dl", class_="ckeditor-accordion"):
-            # Ogni <dt> è un arrondissement, ogni <dd> è il contenuto
             dts = dl.find_all("dt")
             dds = dl.find_all("dd")
 
             for dt, dd in zip(dts, dds):
-                # Controlla se questo è l'arrondissement che cerchiamo
-                dt_text = dt.get_text(strip=True)  # es. "1erarrondissement"
+                dt_text = dt.get_text(strip=True)
                 if arrondissement.replace(" ", "").lower() in dt_text.replace(" ", "").lower():
-                    self.stdout.write(f"  Sezione trovata: '{dt_text}'")
+                    self.stdout.write(f"  Found section: '{dt_text}'")
 
                     # Trova tutti i <li> dentro questo <dd>
                     for li in dd.find_all("li"):
                         text = li.get_text(strip=True)
-                        # Prende solo la parte prima del ":"
-                        match = re.match(r"^(.+?)\s*:", text)
+                        # Take only the part before ":"
+                        match = re.match(r"^(.+?)\s*:(.*)", text)
                         if match:
                             addr = match.group(1).strip()
-                            # Verifica che inizi con un numero
+                            after_colon = match.group(2)
+                            # Keep only addresses that start with a number
                             if re.match(r"^\d", addr):
                                 full = f"{addr}, Marseille"
-                                if full not in addresses:
-                                    addresses.append(full)
+                                # The last event in the history (separated by –/—)
+                                # determines current status: green if it starts with "Mainlevée"
+                                segments = re.split(r'\s*[–—]\s*', after_colon)
+                                last_segment = segments[-1].strip()
+                                is_mainlevee = bool(re.match(r'Mainlev[eé]e', last_segment))
+                                if full not in [a for a, _ in addresses]:
+                                    addresses.append((full, is_mainlevee))
 
         return addresses
     
@@ -140,11 +144,19 @@ class Command(BaseCommand):
         return None
 
     def handle(self, *args, **kwargs):
-        self.stdout.write("Scraping addresses...")
-        addresses = self.scrape_addresses("1er")
-        self.stdout.write(f"Found {len(addresses)} addresses")
+        self.stdout.write("Fetching page...")
+        url = "https://www.marseille.fr/logement-urbanisme/amelioration-de-lhabitat/arretes-de-peril"
+        response = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=30)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, "html.parser")
 
-        for address in addresses:
+        addresses = []
+        for arr in ALL_ARRONDISSEMENTS:
+            self.stdout.write(f"Scraping arrondissement {arr}...")
+            addresses.extend(self.scrape_addresses(arr, soup))
+        self.stdout.write(f"Found {len(addresses)} addresses total")
+
+        for address, is_mainlevee in addresses:
             if Place.objects.filter(address=address).exists():
                 self.stdout.write(f"  Already in DB: {address}")
                 continue
@@ -156,10 +168,9 @@ class Command(BaseCommand):
             if not coords:
                 self.stdout.write(f"  Trying to split composite address...")
                 sub_addresses = self.split_composite_address(address)
-                
+
                 if len(sub_addresses) > 1:
                     self.stdout.write(f"  Split into {len(sub_addresses)} parts: {sub_addresses}")
-                    # Try geocoding each part and take the first that works
                     for sub in sub_addresses:
                         coords = self.geocode(sub)
                         if coords:
@@ -168,20 +179,19 @@ class Command(BaseCommand):
                         time.sleep(1)
 
             if coords:
-                Place.objects.filter(address=address).delete()  # remove old failed entry
+                Place.objects.filter(address=address).delete()
                 Place.objects.create(
                     address=address,
                     lat=coords[0],
                     lon=coords[1],
-                    geocoded=True
+                    geocoded=True,
+                    mainlevee=is_mainlevee,
                 )
-                self.stdout.write(self.style.SUCCESS(f"  Saved: {address}"))
+                label = " [Mainlevée]" if is_mainlevee else ""
+                self.stdout.write(self.style.SUCCESS(f"  Saved: {address}{label}"))
             else:
                 self.stdout.write(self.style.WARNING(f"  Not found: {address}"))
-                Place.objects.create(
-                    address=address,
-                    geocoded=False
-                )
+                Place.objects.create(address=address, geocoded=False)
             time.sleep(1)
 
         self.stdout.write(self.style.SUCCESS("Done!"))

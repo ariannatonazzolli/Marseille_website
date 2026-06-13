@@ -6,6 +6,7 @@ class Place(models.Model):
     lat = models.FloatField(null=True, blank=True)
     lon = models.FloatField(null=True, blank=True)
     geocoded = models.BooleanField(default=False)
+    mainlevee = models.BooleanField(default=False)
 
     def __str__(self):
         return self.address
