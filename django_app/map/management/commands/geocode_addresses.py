@@ -12,10 +12,10 @@ MANUAL_CORRECTIONS = {
     "19 rtue Lafayette, Marseille":                  "19 rue Lafayette, Marseille",
     "43 ru du Patit Saint-Jean, Marseille":          "43 rue du Petit Saint-Jean, Marseille",
     "86 rue Bernard Dubois, Marseille":              "86 rue Bernard du Bois, Marseille",
-    "7 rue Pollack, Marseille":                      "7 rue Rodolphe Pollack, Marseille",
+    "7 rue Pollack, Marseille":                      "7 rue Rodolphe Pollak, Marseille",
     "2 rue des Feuilants, Marseille":                "2 rue des Feuillants, Marseille",
     "58 rue de Sénac de Meilhan, Marseille":         "58 rue Sénac de Meilhan, Marseille",
-    "4 rue Rodolphe\xa0Pollack, Marseille":          "4 rue Rodolphe Pollack, Marseille",
+    "4 rue Rodolphe\xa0Pollack, Marseille":          "4 rue Rodolphe Pollak, Marseille",
     "44 \xa0rue du Tapis Vert, Marseille":           "44 rue du Tapis Vert, Marseille",
     # Méolan
     "3 Méolan / 7rue de Rome, Marseille":            "7 rue de Rome, Marseille",
@@ -47,7 +47,7 @@ MANUAL_CORRECTIONS = {
     "15 rue du Tapis Vert, Marseille":      "15 rue Tapis Vert, Marseille",
     "55 rue du Tapis Vert, Marseille":      "55 rue Tapis Vert, Marseille",
     "40 rue Sainte-Bazile, Marseille":      "40 rue Saint-Bazile, Marseille",
-    "4 rue Rodolphe Pollack, Marseille":    "4 rue Pollack, Marseille",
+    #"4 rue Rodolphe Pollack, Marseille":    "4 rue Pollack, Marseille",
 }
 
 ALL_ARRONDISSEMENTS = [
@@ -131,7 +131,6 @@ class Command(BaseCommand):
         # Check manual corrections first
         corrected = MANUAL_CORRECTIONS.get(address, address)
         if corrected != address:
-            self.stdout.write(f"  Applying correction: {address} → {corrected}")
             address = corrected
         
         url = "https://nominatim.openstreetmap.org/search"
@@ -157,11 +156,13 @@ class Command(BaseCommand):
         self.stdout.write(f"Found {len(addresses)} addresses total")
 
         for address, is_mainlevee in addresses:
-            if Place.objects.filter(address=address).exists():
-                self.stdout.write(f"  Already in DB: {address}")
+            if Place.objects.filter(address=address, geocoded=True).exists():
+                self.stdout.write(f"  Already geocoded: {address}")
                 continue
 
-            self.stdout.write(f"  Geocoding: {address}")
+            corrected = MANUAL_CORRECTIONS.get(address, address)
+            suffix = f" → {corrected}" if corrected != address else ""
+            self.stdout.write(f"  Geocoding: {address}{suffix}")
             coords = self.geocode(address)
 
             # If not found, try splitting the address
@@ -191,7 +192,7 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.SUCCESS(f"  Saved: {address}{label}"))
             else:
                 self.stdout.write(self.style.WARNING(f"  Not found: {address}"))
-                Place.objects.create(address=address, geocoded=False)
+                Place.objects.update_or_create(address=address, defaults={"geocoded": False})
             time.sleep(1)
 
         self.stdout.write(self.style.SUCCESS("Done!"))

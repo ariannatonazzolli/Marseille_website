@@ -26,11 +26,49 @@
             border-radius: 10px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         }
+
+        #search-box {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        #search-input {
+            width: 600px;
+            padding: 8px 12px;
+            font-size: 15px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+        }
+
+        #search-button {
+            padding: 8px 16px;
+            font-size: 15px;
+            background: #333;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        #search-message {
+            font-size: 13px;
+            color: #888;
+            margin-bottom: 8px;
+            min-height: 18px;
+        }
     </style>
 </head>
 <body>
 
 <h1>Arrêtés de mise en sécurité à Marseille</h1>
+
+<div id="search-box">
+    <input id="search-input" type="text" placeholder="Rechercher une adresse (par exemple 69 rue d'Aubagne)..." />
+    <button id="search-button">Rechercher</button>
+</div>
+<div id="search-message"></div>
+
 <div id="map"></div>
 
 <!-- Leaflet JS -->
@@ -76,12 +114,44 @@
         shadowSize: [41, 41]
     });
 
-    // Add a pin for each place
-    places.forEach(function(place) {
+    // Add a pin for each place and keep a reference to each marker
+    const markers = places.map(function(place) {
         const icon = place.mainlevee ? greenIcon : redIcon;
-        L.marker([place.lat, place.lon], { icon: icon })
+        const marker = L.marker([place.lat, place.lon], { icon: icon })
             .addTo(map)
             .bindPopup("<b>" + place.address + "</b>");
+        return { place, marker };
+    });
+
+    function search() {
+        const query = document.getElementById('search-input').value.trim().toLowerCase();
+        const msg = document.getElementById('search-message');
+
+        if (!query) {
+            msg.textContent = '';
+            return;
+        }
+
+        const results = markers.filter(function(m) {
+            return m.place.address.toLowerCase().includes(query);
+        });
+
+        if (results.length === 0) {
+            msg.textContent = 'Nessun indirizzo trovato.';
+            return;
+        }
+
+        msg.textContent = results.length + ' risultat' + (results.length === 1 ? 'o' : 'i') + ' trovati.';
+
+        // Zoom to the first result and open its popup
+        const first = results[0];
+        map.setView([first.place.lat, first.place.lon], 19);
+        first.marker.openPopup();
+    }
+
+    document.getElementById('search-button').addEventListener('click', search);
+    document.getElementById('search-input').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') search();
     });
 </script>
 
