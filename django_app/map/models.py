@@ -7,6 +7,7 @@ class Place(models.Model):
     lon = models.FloatField(null=True, blank=True)
     geocoded = models.BooleanField(default=False)
     mainlevee = models.BooleanField(default=False)
+    arrondissement = models.CharField(max_length=10, blank=True, default="")
 
     def __str__(self):
         return self.address

@@ -8,18 +8,32 @@ from map.models import Place
 # Dictionary of manual corrections for addresses that fail geocoding
 MANUAL_CORRECTIONS = {
     # Typos
-    "69 eur d'Aubagne, Marseille":                  "69 rue d'Aubagne, Marseille",
-    "19 rtue Lafayette, Marseille":                  "19 rue Lafayette, Marseille",
-    "43 ru du Patit Saint-Jean, Marseille":          "43 rue du Petit Saint-Jean, Marseille",
-    "86 rue Bernard Dubois, Marseille":              "86 rue Bernard du Bois, Marseille",
-    "7 rue Pollack, Marseille":                      "7 rue Rodolphe Pollak, Marseille",
-    "2 rue des Feuilants, Marseille":                "2 rue des Feuillants, Marseille",
-    "58 rue de Sénac de Meilhan, Marseille":         "58 rue Sénac de Meilhan, Marseille",
-    "4 rue Rodolphe\xa0Pollack, Marseille":          "4 rue Rodolphe Pollak, Marseille",
-    "44 \xa0rue du Tapis Vert, Marseille":           "44 rue du Tapis Vert, Marseille",
-    # Méolan
-    "3 Méolan / 7rue de Rome, Marseille":            "7 rue de Rome, Marseille",
-    "7 rue de Rome / 3 Méolan, Marseille":           "7 rue de Rome, Marseille",
+    "69 eur d'Aubagne, Marseille":                                  "69 rue d'Aubagne, Marseille",
+    "19 rtue Lafayette, Marseille":                                 "19 rue Lafayette, Marseille",
+    "43 ru du Patit Saint-Jean, Marseille":                         "43 rue du Petit Saint-Jean, Marseille",
+    "86 rue Bernard Dubois, Marseille":                             "86 rue Bernard du Bois, Marseille",
+    "7 rue Pollack, Marseille":                                     "7 rue Rodolphe Pollak, Marseille",
+    "2 rue des Feuilants, Marseille":                               "2 rue des Feuillants, Marseille",
+    "58 rue de Sénac de Meilhan, Marseille":                        "58 rue Sénac de Meilhan, Marseille",
+    "4 rue Rodolphe\xa0Pollack, Marseille":                         "4 rue Rodolphe Pollak, Marseille",
+    "44 \xa0rue du Tapis Vert, Marseille":                          "44 rue Tapis Vert, Marseille",
+    "49 rue Pierre Albran, Marseille":                              "49 rue Pierre Albrand, Marseille",
+    "2 bis/ter rue d'Anthoine, Marseille":                          "2 rue d'Anthoine, Marseille",
+    "3 Méolan / 7rue de Rome, Marseille":                           "7 rue de Rome, Marseille",
+    "7 rue de Rome / 3 Méolan, Marseille":                          "7 rue de Rome, Marseille",
+    "46 rue Caisserie (4eet 5eétages), Marseille":                  "46 rue Caisserie, Marseille",
+    "11 rue de la Fontaine de Caylus, Marseille":                   "11 rue Font de Caylus, Marseille",
+    "10 place de la Joliette (Les Docks), Marseille":               "10 place de la Joliette, Marseille",
+    "250 chemin de la Madrague Ville (parcelle 277), Marseille":    "250 chemin de la Madrague Ville, Marseille",
+    "36 rue montée Mouren":                                         "36 Mnt Mouren, Marseille",
+    "44 rue Saint-Françoise, Marseille":                            "44 rue Sainte-Françoise, Marseille",
+    "21 avenue Robert Schumann, Marseille":                         "21 Av. Robert Schuman, Marseille",
+    "31 avenue Robert Schumann, Marseille":                         "31 Av. Robert Schuman, Marseille",
+    "35 avenue Robert Schumann, Marseille":                         "35 Av. Robert Schuman, Marseille",
+    "23 Boulevard de Vaisseau, Marseille":                          "23 Bd du Vaisseau, Marseille",
+    "30T boulevard Bonne Brise (Plage Bonne Brise), Marseille":     "30 Bd Bonne Brise, Marseille",
+    "135\xa0 avenue Alexanddre Delabre, Marseille":                    "135 boulevard Alexandre Delabre, Marseille",
+    "4 et 4 B traverse de la Gironne, Marseille":                   "4 traverse de la Gironne, Marseille",    
     # allées → allée
     "29 allées Léon Gambetta, Marseille":            "29 allée Léon Gambetta, Marseille",
     "55 allées Léon Gambetta, Marseille":            "55 allée Léon Gambetta, Marseille",
@@ -47,7 +61,7 @@ MANUAL_CORRECTIONS = {
     "15 rue du Tapis Vert, Marseille":      "15 rue Tapis Vert, Marseille",
     "55 rue du Tapis Vert, Marseille":      "55 rue Tapis Vert, Marseille",
     "40 rue Sainte-Bazile, Marseille":      "40 rue Saint-Bazile, Marseille",
-    #"4 rue Rodolphe Pollack, Marseille":    "4 rue Pollack, Marseille",
+    "41 rue de Montolieu, Marseille":       "41 rue Montolieu, Marseille"
 }
 
 ALL_ARRONDISSEMENTS = [
@@ -152,10 +166,11 @@ class Command(BaseCommand):
         addresses = []
         for arr in ALL_ARRONDISSEMENTS:
             self.stdout.write(f"Scraping arrondissement {arr}...")
-            addresses.extend(self.scrape_addresses(arr, soup))
+            for addr, is_mainlevee in self.scrape_addresses(arr, soup):
+                addresses.append((addr, is_mainlevee, arr))
         self.stdout.write(f"Found {len(addresses)} addresses total")
 
-        for address, is_mainlevee in addresses:
+        for address, is_mainlevee, arr in addresses:
             if Place.objects.filter(address=address, geocoded=True).exists():
                 self.stdout.write(f"  Already geocoded: {address}")
                 continue
@@ -187,12 +202,16 @@ class Command(BaseCommand):
                     lon=coords[1],
                     geocoded=True,
                     mainlevee=is_mainlevee,
+                    arrondissement=arr,
                 )
                 label = " [Mainlevée]" if is_mainlevee else ""
                 self.stdout.write(self.style.SUCCESS(f"  Saved: {address}{label}"))
             else:
                 self.stdout.write(self.style.WARNING(f"  Not found: {address}"))
-                Place.objects.update_or_create(address=address, defaults={"geocoded": False})
+                Place.objects.update_or_create(
+                    address=address,
+                    defaults={"geocoded": False, "arrondissement": arr},
+                )
             time.sleep(1)
 
         self.stdout.write(self.style.SUCCESS("Done!"))

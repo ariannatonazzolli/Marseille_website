@@ -153,6 +153,19 @@
     document.getElementById('search-input').addEventListener('keydown', function(e) {
         if (e.key === 'Enter') search();
     });
+
+    const legend = L.control({ position: 'bottomright' });
+    legend.onAdd = function() {
+        const div = L.DomUtil.create('div');
+        div.style.cssText = 'background:white;padding:10px 14px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.2);font-size:13px;line-height:1.8';
+        div.innerHTML = `
+            <b>Légende</b><br>
+            <img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png" height="20"> Arrêté de mise en sécurité<br>
+            <img src="https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png" height="20"> Mainlevée
+        `;
+        return div;
+    };
+    legend.addTo(map);
 </script>
 
 </body>
