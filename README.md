@@ -2,6 +2,10 @@
 
 An interactive map of buildings in Marseille placed under an **"arrêté de mise en sécurité"** (a municipal safety order issued when a building is found structurally unsafe), showing whether that order is still active or has been lifted (**mainlevée**).
 
+## Website
+
+Visit the live site: https://marseille-arretes-de-peril.onrender.com/
+
 ## Context
 
 Marseille has one of France's largest stocks of degraded housing. The issue became impossible to ignore after the **8 November 2018 collapse of 63 rue d'Aubagne**, which killed eight people and triggered a wave of emergency evacuations across the city center. In the years since, thousands of residents have been displaced by safety orders.
